@@ -3,23 +3,26 @@
 #include "Update.h"
 #include <WiFiClientSecure.h>
 
-// Definir credenciais de WiFi
-#definir ssid "SSID"
-#definir senha "PASSWORD"
+// Define WiFi credentials
+#define ssid "Alunos9"
+#define password "Alunos@243"
+//#define ssid "SSID"
+//#define password "PASSWORD"
 
-// Definir detalhes do servidor e caminho do arquivo
-#definir HOST "raw.githubusercontent.com"
-#definir PATH "/adityabangde/ESP32-OTA-Update-via-GitHub/dev/ota_code.bin"
-#definir PORTA 443
+// Define server details and file path
+#define HOST "raw.githubusercontent.com"
+#define PATH "/ThalesACSantos/ESP32/ota_code.bin"
+//#define PATH "/adityabangde/ESP32-OTA-Update-via-GitHub/dev/ota_code.bin"
+#define PORT 443
 
-// Definir o nome do arquivo de firmware baixado
-#definir FILE_NAME "firmware.bin"
+// Define the name for the downloaded firmware file
+#define FILE_NAME "firmware.bin"
 
 void setup() {
   Serial.begin(115200);
 
   if (!SPIFFS.begin(true)) {
-    Serial.println("Falha na montagem do SPIFFS");
+    Serial.println("SPIFFS Mount Failed");
     return;
   }
 
@@ -29,51 +32,51 @@ void setup() {
 }
 
 void loop() {
-  // Nada a fazer aqui
+  // Nothing to do here
 }
 
 void connectToWiFi() {
-  // Comece a se conectar ao WiFi usando o SSID e a senha fornecidos
+  // Begin connecting to WiFi using the provided SSID and password
   WiFi.begin(ssid, password);
 
-  // Exiba o progresso da conexão
-  Serial.print("Conectando ao WiFi");
-
-  // Aguarde até que o WiFi esteja conectado
+  // Display connection progress
+  Serial.print("Connecting to WiFi");
+  
+  // Wait until WiFi is connected
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-
-  // Imprima a mensagem de confirmação quando o WiFi estiver conectado
-  Serial.println("WiFi conectado");
+  
+  // Print confirmation message when WiFi is connected
+  Serial.println("WiFi connected");
 }
 
 
 void getFileFromServer() {
   WiFiClientSecure client;
-  client.setInsecure();  // Defina o cliente para permitir conexões inseguras
+  client.setInsecure(); // Set client to allow insecure connections
 
-  if (client.connect(HOST, PORT)) {  // Conecte-se ao servidor
-    Serial.println("Conectado ao servidor");
-    client.imprimir("OBTER" + String(PATH) + " HTTP/1.1\r\n");  // Envia solicitação HTTP GET
-    client.print("Host: " + String(HOST) + "\r\n");             // Especifica o host
-    client.println("Connection: close\r\n");                    // Fecha a conexão após a resposta
-    client.println();                                           // Envia uma linha vazia para indicar o fim dos cabeçalhos da solicitação
+  if (client.connect(HOST, PORT)) { // Connect to the server
+    Serial.println("Connected to server");
+    client.print("GET " + String(PATH) + " HTTP/1.1\r\n"); // Send HTTP GET request
+    client.print("Host: " + String(HOST) + "\r\n"); // Specify the host
+    client.println("Connection: close\r\n"); // Close connection after response
+    client.println(); // Send an empty line to indicate end of request headers
 
-    File file = SPIFFS.open("/" + String(FILE_NAME), FILE_WRITE);  // Abre o arquivo em SPIFFS para gravação
+    File file = SPIFFS.open("/" + String(FILE_NAME), FILE_WRITE); // Open file in SPIFFS for writing
     if (!file) {
-      Serial.println("Falha ao abrir o arquivo para gravação");
+      Serial.println("Failed to open file for writing");
       return;
     }
 
     bool endOfHeaders = false;
     String headers = "";
     String http_response_code = "error";
-    const size_t bufferSize = 1024;  // Tamanho do buffer para leitura de dados
+    const size_t bufferSize = 1024; // Buffer size for reading data
     uint8_t buffer[bufferSize];
 
-    // Loop para ler cabeçalhos de resposta HTTP
+    // Loop to read HTTP response headers
     while (client.connected() && !endOfHeaders) {
       if (client.available()) {
         char c = client.read();
@@ -81,60 +84,62 @@ void getFileFromServer() {
         if (headers.startsWith("HTTP/1.1")) {
           http_response_code = headers.substring(9, 12);
         }
-        if (headers.endsWith("\r\n\r\n")) {  // Verificar o fim dos cabeçalhos
+        if (headers.endsWith("\r\n\r\n")) { // Check for end of headers
           endOfHeaders = true;
         }
       }
     }
 
-    Serial.println("HTTP response code: " + http_response_code);  // Imprime cabeçalhos recebidos
+    Serial.println("HTTP response code: " + http_response_code); // Print received headers
 
-    // Loop para ler e gravar dados brutos no arquivo
+    // Loop to read and write raw data to file
     while (client.connected()) {
       if (client.available()) {
         size_t bytesRead = client.readBytes(buffer, bufferSize);
-        file.write(buffer, bytesRead);  // Grava dados no arquivo
+        file.write(buffer, bytesRead); // Write data to file
       }
     }
-    file.fechar();  // Fecha o arquivo
-    client.stop();  // Fecha a conexão do cliente
-    Serial.println("Arquivo salvo com sucesso");
-  } else {
-    Serial.println("Falha ao conectar ao servidor");
+    file.close(); // Close the file
+    client.stop(); // Close the client connection
+    Serial.println("File saved successfully");
+  }
+  else {
+    Serial.println("Failed to connect to server");
   }
 }
 
 void performOTAUpdateFromSPIFFS() {
-  // Abre o arquivo de firmware no SPIFFS para leitura
-  Arquivo file = SPIFFS.open("/" + String(FILE_NAME), FILE_READ);
+  // Open the firmware file in SPIFFS for reading
+  File file = SPIFFS.open("/" + String(FILE_NAME), FILE_READ);
   if (!file) {
-    Serial.println("Falha ao abrir o arquivo para leitura");
+    Serial.println("Failed to open file for reading");
     return;
   }
 
-  Serial.println("Iniciando atualização..");
-  size_t fileSize = file.size();  // Obtém o tamanho do arquivo
+  Serial.println("Starting update..");
+  size_t fileSize = file.size(); // Get the file size
   Serial.println(fileSize);
 
-  // Inicia o processo de atualização OTA com o tamanho e o destino flash especificados
+  // Begin OTA update process with specified size and flash destination
   if (!Update.begin(fileSize, U_FLASH)) {
-    Serial.println("Não é possível fazer a atualização");
+    Serial.println("Cannot do the update");
     return;
   }
 
-  // Grava dados de firmware do arquivo na atualização OTA
+  // Write firmware data from file to OTA update
   Update.writeStream(file);
 
-  // Conclua o processo de atualização OTA
+  // Complete the OTA update process
   if (Update.end()) {
-    Serial.println("Atualização bem-sucedida");
-  } else {
-    Serial.println("Ocorreu um erro:" + String(Update.getError()));
+    Serial.println("Successful update");
+  }
+  else {
+    Serial.println("Error Occurred:" + String(Update.getError()));
     return;
   }
 
-  file.close();  // Feche o arquivo
-  Serial.println("Redefinir em 4 segundos...");
+  file.close(); // Close the file
+  Serial.println("Reset in 4 seconds....");
   delay(4000);
-  ESP.restart();  // Reinicie o ESP32 para aplicar a atualização
+  ESP.restart(); // Restart ESP32 to apply the update
 }
